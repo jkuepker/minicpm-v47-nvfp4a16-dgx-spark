@@ -19,6 +19,17 @@ Set `EXPERTS_ONLY=1` for `run_quant.sh` to get the older build that only quantiz
 
 Files in this recipe: `run_quant.sh`, `quantize_nvfp4a16.py`, `verify_ckpt.py`, `fix_processor_configs.py`, `serve.sh`. Put them in one directory and run everything from there.
 
+## Faster on the same Spark: TensorFold
+
+[TensorFold](https://github.com/jkuepker/TensorFold/blob/minicpmv47-066/docs/recipes/minicpm-v-4.7.md) (a fork branch on the 0.6.6 release) serves MiniCPM-V 4.7 as an MLX 4-bit checkpoint and drafts with Qwen3.6-35B-A3B's MTP layer. MiniCPM's language model is a Qwen3.6 fine-tune, so that layer's drafts are mostly accepted. On the same Spark, measured with the same tool:
+
+| | decode @ ~1k prompt | @ ~16k | long-context code avg | MMLU |
+|---|---:|---:|---:|---:|
+| This recipe (vLLM, NVFP4) | 102.5 | 93.1 | 92.0 | 83.1 |
+| TensorFold, MLX 4-bit + Qwen3.6 MTP drafts | 153.2 | 142.1 | 161.7 | 83.6 |
+
+Trade-offs: the MLX checkpoint is converted on an Apple Silicon Mac (tested there only); image requests run one at a time; without drafts TensorFold decodes about 10% slower than vLLM. Use this recipe when you need concurrent image requests or a stock vLLM stack.
+
 ## Requirements
 
 - NVIDIA DGX Spark (GB10, sm_121, 128 GB unified memory), Docker with the NVIDIA runtime.

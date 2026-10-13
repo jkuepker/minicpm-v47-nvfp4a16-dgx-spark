@@ -1,4 +1,4 @@
-> Recipe and bundled engine for running [openbmb/MiniCPM-V-4.7-35B-A3B](https://huggingface.co/openbmb/MiniCPM-V-4.7-35B-A3B) as an NVFP4 W4A16 checkpoint on one DGX Spark. This repo has scripts and a Dockerfile, not model weights; the same recipe is on Hugging Face at [kuepker/MiniCPM-V-4.7-35B-A3B-NVFP4A16-1x-DGX-Spark](https://huggingface.co/kuepker/MiniCPM-V-4.7-35B-A3B-NVFP4A16-1x-DGX-Spark). Scripts are Apache-2.0; the model and anything built from it stay under OpenBMB's MiniCPM model license.
+> Recipe and bundled engine for running [openbmb/MiniCPM-V-4.7-35B-A3B](https://huggingface.co/openbmb/MiniCPM-V-4.7-35B-A3B) as an NVFP4 W4A16 checkpoint on one DGX Spark. This repo has scripts and a Dockerfile, not model weights; the same recipe is on Hugging Face at [kuepker/MiniCPM-V-4.7-35B-A3B-NVFP4A16-1x-DGX-Spark](https://huggingface.co/kuepker/MiniCPM-V-4.7-35B-A3B-NVFP4A16-1x-DGX-Spark). Scripts are Apache-2.0; the model and anything built from it stay under OpenBMB's license for the weights (also Apache-2.0).
 
 # MiniCPM-V-4.7-35B-A3B-NVFP4A16-1x-DGX-Spark
 
@@ -21,14 +21,14 @@ Files in this recipe: `run_quant.sh`, `quantize_nvfp4a16.py`, `verify_ckpt.py`, 
 
 ## Faster on the same Spark: TensorFold
 
-[TensorFold](https://github.com/jkuepker/TensorFold/blob/minicpmv47-066/docs/recipes/minicpm-v-4.7.md) (a fork branch on the 0.6.6 release) serves MiniCPM-V 4.7 as an MLX 4-bit checkpoint and drafts with Qwen3.6-35B-A3B's MTP layer. MiniCPM's language model is a Qwen3.6 fine-tune, so that layer's drafts are mostly accepted. On the same Spark, measured with the same tool:
+[TensorFold](https://github.com/jkuepker/TensorFold/blob/minicpmv47-066/docs/recipes/minicpm-v-4.7.md) (a fork branch on the 0.6.6 release) serves MiniCPM-V 4.7 from a [published MLX 4-bit checkpoint](https://huggingface.co/kuepker/MiniCPM-V-4.7-35B-A3B-MLX-4bit-TensorFold) and drafts with Qwen3.6-35B-A3B's MTP layer. MiniCPM's language model is a Qwen3.6 fine-tune, so that layer's drafts are mostly accepted. On the same Spark, measured with the same tool:
 
 | | decode @ ~1k prompt | @ ~16k | long-context code avg | MMLU |
 |---|---:|---:|---:|---:|
 | This recipe (vLLM, NVFP4) | 102.5 | 93.1 | 92.0 | 83.1 |
 | TensorFold, MLX 4-bit + Qwen3.6 MTP drafts | 153.2 | 142.1 | 161.7 | 83.6 |
 
-Trade-offs: the MLX checkpoint is converted on an Apple Silicon Mac (tested there only); image requests run one at a time; without drafts TensorFold decodes about 10% slower than vLLM. Use this recipe when you need concurrent image requests or a stock vLLM stack.
+Trade-offs: image requests run one at a time; without drafts TensorFold decodes about 10% slower than vLLM. Use this recipe when you need concurrent image requests or a stock vLLM stack.
 
 ## Requirements
 

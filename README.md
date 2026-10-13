@@ -9,7 +9,7 @@ Name key: `MiniCPM-V-4.7-35B-A3B` is OpenBMB's vision-language MoE (35B total, ~
 - Quantize `openbmb/MiniCPM-V-4.7-35B-A3B` (BF16) to NVFP4A16 with llm-compressor `model_free_ptq`, inside the vLLM aarch64 nightly image. About 10 minutes on the Spark's CPU, a few GB of memory per worker, 21.38 GB output.
 - Every Linear in the language model is 4-bit: routed and shared experts, `linear_attn` and `self_attn` projections, and `lm_head`. Router gates, `shared_expert_gate`, `linear_attn` `in_proj_a`/`in_proj_b`, the vision tower and merger, embeddings, `conv1d` and norms stay BF16.
 - Decode is about 100 tok/s for a single request on one Spark. That is 2.6x the earlier experts-only NVFP4 build of this model (38.6 to 38.9 tok/s), 3.3x BF16, and faster than `nvidia/Qwen3.6-35B-A3B-NVFP4` on the same engine (77 to 79 tok/s).
-- Quality cost is about 1 MMLU point: 83.1 vs 84.1 for BF16. Vision, tool calls, HumanEval and long-context code checks are unchanged. GSM8K and IFEval use 25 items each and are noisy.
+- Quality cost is about 1 MMLU point: 83.1 vs 84.1 for BF16. Vision, tool calls and HumanEval are unchanged; all 18 long-context code tasks (4k to 32k tokens) complete. GSM8K and IFEval use 25 items each and are noisy.
 - Optional: `DSPARK=1` in `serve.sh` turns on speculative decoding with OpenBMB's DSpark draft model. It adds roughly 15 to 18 tok/s at short context and slows decode at long context (break-even is around 16k tokens).
 - You need a vLLM nightly from 2026-10-11 or later (MiniCPM-V 4.7 support is vllm-project/vllm PR #58674, not in v0.31.0), or v0.32+ once released. The numbers below are from `0.31.1rc1.dev296+gfe4df3df0`.
 - Two checkpoint fixes are required before vLLM will load it (`auto_map` removal, processor class rename). `fix_processor_configs.py` does both. The same fixes apply to OpenBMB's own AWQ repo.
@@ -32,6 +32,12 @@ The engine is bundled: one image with the exact vLLM build this recipe was teste
 
 ```bash
 docker pull ghcr.io/jkuepker/minicpm-v47-nvfp4a16-dgx-spark:vllm0.31.1rc1.dev296
+```
+
+If the pull is denied, use the plain vLLM image the bundle is built from (the scripts then install the quantization tools on each run):
+
+```bash
+export IMAGE=vllm/vllm-openai@sha256:d044fa021560985593390653000281ee57e0c8bcd5e8f3b94710ec335c0544a3
 ```
 
 What is inside (built from the `Dockerfile` in this repo, about 26 GB, linux/arm64):
@@ -311,16 +317,16 @@ Number of speculative tokens, measured on the experts-only and attention builds 
 
 ### Quality (same harness for every build)
 
-| Build | MMLU (1,425) | GSM8K (25) | IFEval (25) | HumanEval (40) | Long-ctx code (18) | Large-digit vision (7) | Tool calls (3) |
+| Build | MMLU (1,425) | GSM8K (25) | IFEval (25) | HumanEval (40) | Long-ctx code completed (18) | Large-digit vision (7) | Tool calls (3) |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| Qwen3.6-35B-A3B NVFP4 (older vLLM 0.26 build) | 84.6 | 56 | 88 | 100 | 18/18 | - | - |
-| MiniCPM-V 4.7 BF16 | 84.1 | 44 | 92 | 100 | 18/18 | 7/7 | 3/3 |
-| MiniCPM-V 4.7 AWQ (OpenBMB) | 83.0 | 48 | 88 | 100 | 18/18 | 7/7 | 3/3 |
-| NVFP4A16, experts only | 83.9 | 48 | 92 | 100 | 18/18 | 7/7 | 3/3 |
-| NVFP4A16, attention | 83.1 | 44 | 92 | 100 | 18/18 | 7/7 | 3/3 |
-| **NVFP4A16, attention + lm_head** | **83.1** | **48** | **92** | **100** | **18/18** | **7/7** | **3/3** |
+| Qwen3.6-35B-A3B NVFP4 (older vLLM 0.26 build) | 84.6 | 56 | 88 | 100 | 18/18 done | - | - |
+| MiniCPM-V 4.7 BF16 | 84.1 | 44 | 92 | 100 | 18/18 done | 7/7 | 3/3 |
+| MiniCPM-V 4.7 AWQ (OpenBMB) | 83.0 | 48 | 88 | 100 | 18/18 done | 7/7 | 3/3 |
+| NVFP4A16, experts only | 83.9 | 48 | 92 | 100 | 18/18 done | 7/7 | 3/3 |
+| NVFP4A16, attention | 83.1 | 44 | 92 | 100 | 18/18 done | 7/7 | 3/3 |
+| **NVFP4A16, attention + lm_head** | **83.1** | **48** | **92** | **100** | **18/18 done** | **7/7** | **3/3** |
 
-Quantizing attention and `lm_head` costs about 1 MMLU point against BF16 (83.1 vs 84.1) and 0.8 against the experts-only build (83.9). The attention build already scored 83.1, so adding `lm_head` did not lower MMLU further. GSM8K and IFEval use 25 items each: one item is 4 points, so differences of 4 to 8 points are noise. MMLU (1,425 items) is the precise quality signal. HumanEval, long-context code, vision and tool calls are unchanged from BF16, but they are small checks (n = 40, 18, 7, 3), not benchmarks.
+Quantizing attention and `lm_head` costs about 1 MMLU point against BF16 (83.1 vs 84.1) and 0.8 against the experts-only build (83.9). The attention build already scored 83.1, so adding `lm_head` did not lower MMLU further. GSM8K and IFEval use 25 items each: one item is 4 points, so differences of 4 to 8 points are noise. MMLU (1,425 items) is the precise quality signal. HumanEval, vision and tool calls are unchanged from BF16, but they are small checks (n = 40, 7, 3), not benchmarks. The long-context code column counts completed tasks (a speed set run with `--judge none`); it is not a correctness score.
 
 ## Why this is fast
 
